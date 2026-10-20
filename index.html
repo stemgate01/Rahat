@@ -7,16 +7,26 @@
 <meta name="description" content="Articles and stories by Rahat Khan.">
 <link rel="icon" href="/images/rahat.png">
 <script>document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light")</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <div id="header"></div>
 <main class="container">
   <section class="hero">
+    <div class="eyebrow"><span class="dot"></span> Writing regularly</div>
     <h1 id="h-name"></h1>
     <p id="h-tag"></p>
-    <input class="search" id="q" type="search" placeholder="Search articles…" aria-label="Search articles">
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input class="search" id="q" type="search" placeholder="Search articles…" aria-label="Search articles">
+    </div>
   </section>
+  <div class="section-head">
+    <h2>Latest articles</h2>
+    <span class="count" id="count"></span>
+  </div>
   <div class="grid" id="grid"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
 </main>
 <div id="footer"></div>
@@ -29,15 +39,28 @@ $("#h-name").textContent = CONFIG.SITE_NAME;
 $("#h-tag").textContent = CONFIG.TAGLINE;
 let posts = [];
 
+const arrowSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>`;
+
 function draw(list) {
-  $("#grid").innerHTML = list.length ? list.map((p) => {
+  $("#count").textContent = list.length + (list.length === 1 ? " article" : " articles");
+  $("#grid").innerHTML = list.length ? list.map((p, i) => {
     const img = p.cover_image_url || (p.images && p.images[0]);
     const ex = excerpt(p.content);
-    return `<a class="card" href="${postPath(p.slug)}">
-      ${img ? `<img class="thumb" loading="lazy" src="${esc(img)}" alt="">` : `<div class="thumb"></div>`}
-      <div class="card-body"><span class="muted">${fmtDate(p.created_at)} · ${readTime(p.content)}</span>
-      <h2>${esc(p.title)}</h2>${ex ? `<p>${esc(ex)}…</p>` : ""}</div></a>`;
+    return `<a class="card reveal" href="${postPath(p.slug)}" style="transition-delay:${i * 40}ms">
+      <div class="thumb-wrap">
+        ${img ? `<img class="thumb" loading="lazy" src="${esc(img)}" alt="">` : `<div class="thumb"></div>`}
+      </div>
+      <div class="card-body">
+        <div class="meta"><span>${fmtDate(p.created_at)}</span><span class="sep"></span><span>${readTime(p.content)}</span></div>
+        <h2>${esc(p.title)}</h2>
+        ${ex ? `<p>${esc(ex)}…</p>` : ""}
+        <span class="read-more">Read article ${arrowSvg}</span>
+      </div>
+    </a>`;
   }).join("") : `<div class="empty">No articles found.</div>`;
+  requestAnimationFrame(() => {
+    document.querySelectorAll(".reveal").forEach(el => el.classList.add("in"));
+  });
 }
 
 (async () => {
