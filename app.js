@@ -1,12 +1,11 @@
 /* ===== Edit only this block ===== */
-const CONFIG = {
-  SUPABASE_URL: "https://wbzwximiwzmtrhzfgfuh.supabase.co",
-  SUPABASE_ANON_KEY: "sb_publishable_ivTAZp5q5X20IK523jcJhw_qFpQB66A",
-  EMAIL_DOMAIN: "@rahatkhan.com",   // typing "admin" logs in as admin@rahatkhan.com
-  SITE_NAME: "Rahat Khan",
-  TAGLINE: "Thoughts, stories and ideas — written simply.",
-  LOGO: "/images/rahat.png"
-};
+const SUPABASE_URL = "https://wbzwximiwzmtrhzfgfuh.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_ivTAZp5q5X20IK523jcJhw_qFpQB66A";
+
+const supabaseClient = supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY
+);
 /* ================================= */
 
 const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
