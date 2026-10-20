@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rahat Khan — Blog</title>
+<meta name="description" content="Articles and stories by Rahat Khan.">
+<link rel="icon" href="/images/rahat.png">
+<script>document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light")</script>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="header"></div>
+<main class="container">
+  <section class="hero">
+    <h1 id="h-name"></h1>
+    <p id="h-tag"></p>
+    <input class="search" id="q" type="search" placeholder="Search articles…" aria-label="Search articles">
+  </section>
+  <div class="grid" id="grid"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+</main>
+<div id="footer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="/app.js"></script>
+<script>
+mountChrome("home");
+$("#h-name").textContent = CONFIG.SITE_NAME;
+$("#h-tag").textContent = CONFIG.TAGLINE;
+let posts = [];
+
+function draw(list) {
+  $("#grid").innerHTML = list.length ? list.map((p) => {
+    const img = p.cover_image_url || (p.images && p.images[0]);
+    const ex = excerpt(p.content);
+    return `<a class="card" href="${postPath(p.slug)}">
+      ${img ? `<img class="thumb" loading="lazy" src="${esc(img)}" alt="">` : `<div class="thumb"></div>`}
+      <div class="card-body"><span class="muted">${fmtDate(p.created_at)} · ${readTime(p.content)}</span>
+      <h2>${esc(p.title)}</h2>${ex ? `<p>${esc(ex)}…</p>` : ""}</div></a>`;
+  }).join("") : `<div class="empty">No articles found.</div>`;
+}
+
+(async () => {
+  const { data, error } = await sb.from("posts").select("id,title,slug,content,cover_image_url,images,created_at")
+    .eq("published", true).order("created_at", { ascending: false });
+  if (error) return ($("#grid").innerHTML = `<div class="empty">Could not load articles. Please try again.</div>`);
+  posts = data; draw(posts);
+})();
+
+$("#q").oninput = (e) => {
+  const q = e.target.value.toLowerCase();
+  draw(posts.filter((p) => (p.title + " " + (p.content || "")).toLowerCase().includes(q)));
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Article — Rahat Khan</title>
+<link rel="icon" href="/images/rahat.png">
+<script>document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light")</script>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="header"></div>
+<main class="container narrow" id="view"><div class="skeleton" style="margin-top:40px"></div></main>
+<div id="footer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script src="/app.js"></script>
+<script>
+mountChrome(); lightbox();
+const slug = location.pathname.startsWith("/post/")
+  ? decodeURIComponent(location.pathname.slice(6)).replace(/\/$/, "")
+  : new URLSearchParams(location.search).get("slug");
+
+(async () => {
+  const { data: p } = slug ? await sb.from("posts").select("*").eq("slug", slug).maybeSingle() : { data: null };
+  if (!p) return ($("#view").innerHTML = `<div class="empty" style="padding:90px 0"><h2>Article not found</h2><a class="btn btn-primary" href="/">← Back to home</a></div>`);
+
+  document.title = `${p.title} — ${CONFIG.SITE_NAME}`;
+  const html = DOMPurify.sanitize(marked.parse(p.content || ""));
+  const gallery = (p.images || []).length
+    ? `<div class="gallery">${p.images.map((u) => `<img loading="lazy" src="${esc(u)}" alt="">`).join("")}</div>` : "";
+  const url = postUrl(p.slug), enc = encodeURIComponent(url), t = encodeURIComponent(p.title);
+
+  $("#view").innerHTML = `<a class="back" href="/">← All articles</a>
+  <article class="article">
+    ${p.published ? "" : `<span class="badge draft">Draft preview</span>`}
+    <h1>${esc(p.title)}</h1>
+    <div class="muted">${fmtDate(p.created_at)} · ${readTime(p.content)} · by ${esc(CONFIG.SITE_NAME)}</div>
+    ${p.cover_image_url ? `<img class="cover" src="${esc(p.cover_image_url)}" alt="">` : ""}
+    <div class="prose">${html}</div>${gallery}
+    <div class="share"><strong>Share:</strong>
+      <button class="btn btn-ghost btn-sm" id="cp">🔗 Copy link</button>
+      <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://www.facebook.com/sharer/sharer.php?u=${enc}">Facebook</a>
+      <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://wa.me/?text=${t}%20${enc}">WhatsApp</a>
+      <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://twitter.com/intent/tweet?text=${t}&url=${enc}">X</a>
+      ${navigator.share ? `<button class="btn btn-primary btn-sm" id="sh">Share…</button>` : ""}
+    </div></article>`;
+  $("#cp").onclick = () => copy(url);
+  if ($("#sh")) $("#sh").onclick = () => navigator.share({ title: p.title, url });
+})();
+</script>
+</body>
+</html>
