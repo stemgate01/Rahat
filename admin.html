@@ -138,8 +138,8 @@ async function dashView() {
     <div class="page-head">
       <div><h1>Posts</h1><p class="muted">Write, publish and manage your articles.</p></div>
       <div class="actions">
-        <button type="button" class="btn btn-primary" data-nav="new">${icon("plus", 18)}<span>New post</span></button>
-        <button type="button" class="btn btn-ghost" id="out">${icon("logout", 18)}<span>Sign out</span></button>
+        <button type="button" class="btn btn-primary keep" data-nav="new">${icon("plus", 18)}<span>New post</span></button>
+        <button type="button" class="btn btn-ghost keep" id="out">${icon("logout", 18)}<span>Sign out</span></button>
       </div>
     </div>
     ${error ? `<div class="err" role="alert">${icon("alert", 16)}<span>${esc(error.message || "Couldn't load posts.")}</span></div>` : ""}
