@@ -2,15 +2,30 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Article — Rahat Khan</title>
+<meta name="description" content="Articles by Rahat Khan.">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Rahat Khan">
 <link rel="icon" href="/images/rahat.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Sans+Bengali:wght@400;500;600&family=Noto+Serif+Bengali:wght@400;600&display=swap" rel="stylesheet">
 <script>document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light")</script>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <div id="header"></div>
-<main class="container narrow" id="view"><div class="skeleton" style="margin-top:40px"></div></main>
+<main id="main" class="container" tabindex="-1">
+  <div id="view" aria-live="polite">
+    <div class="article-head" aria-hidden="true">
+      <div class="sk" style="height:16px;width:120px;margin-top:24px"></div>
+      <div class="sk" style="height:44px;width:90%;margin-top:28px"></div>
+      <div class="sk" style="height:44px;width:60%;margin-top:12px"></div>
+      <div class="sk" style="height:14px;width:220px;margin-top:20px"></div>
+    </div>
+  </div>
+</main>
 <div id="footer"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -18,38 +33,125 @@
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script src="/app.js"></script>
 <script>
-mountChrome(); lightbox();
-const slug = location.pathname.startsWith("/post/")
-  ? decodeURIComponent(location.pathname.slice(6)).replace(/\/$/, "")
-  : new URLSearchParams(location.search).get("slug");
+mountChrome();
+lightbox();
 
-(async () => {
-  const { data: p } = slug ? await sb.from("posts").select("*").eq("slug", slug).maybeSingle() : { data: null };
-  if (!p) return ($("#view").innerHTML = `<div class="empty" style="padding:90px 0"><h2>Article not found</h2><a class="btn btn-primary" href="/">← Back to home</a></div>`);
+const view = $("#view");
 
-  document.title = `${p.title} — ${CONFIG.SITE_NAME}`;
-  const html = DOMPurify.sanitize(marked.parse(p.content || ""));
-  const gallery = (p.images || []).length
-    ? `<div class="gallery">${p.images.map((u) => `<img loading="lazy" src="${esc(u)}" alt="">`).join("")}</div>` : "";
-  const url = postUrl(p.slug), enc = encodeURIComponent(url), t = encodeURIComponent(p.title);
+let slug = null;
+try {
+  slug = location.pathname.startsWith("/post/")
+    ? decodeURIComponent(location.pathname.slice(6)).replace(/\/$/, "")
+    : new URLSearchParams(location.search).get("slug");
+} catch { slug = null; }
 
-  $("#view").innerHTML = `<a class="back" href="/">← All articles</a>
+function setMeta(sel, attr, value) {
+  let m = $(sel);
+  if (!m) {
+    m = document.createElement("meta");
+    const [, key, val] = sel.match(/\[(\w+(?::\w+)?)="([^"]+)"\]/) || [];
+    if (key) m.setAttribute(key, val);
+    document.head.appendChild(m);
+  }
+  m.setAttribute(attr, value);
+}
+
+function stateHTML(iconName, title, text, actions) {
+  return `<div class="empty" style="padding-top:96px">${icon(iconName, 32)}<h3>${esc(title)}</h3><p>${esc(text)}</p>${actions}</div>`;
+}
+
+function renderArticle(p) {
+  const title = p.title || "Untitled";
+  const desc = excerpt(p.content, 160);
+  document.title = `${title} — ${CONFIG.SITE_NAME}`;
+  setMeta('meta[name="description"]', "content", desc || CONFIG.TAGLINE);
+  setMeta('meta[property="og:title"]', "content", title);
+  setMeta('meta[property="og:description"]', "content", desc || CONFIG.TAGLINE);
+  if (p.cover_image_url) setMeta('meta[property="og:image"]', "content", p.cover_image_url);
+
+  const url = postUrl(p.slug), enc = encodeURIComponent(url), t = encodeURIComponent(title);
+  const imgs = p.images || [];
+  const gallery = imgs.length
+    ? `<div class="gallery${imgs.length === 1 ? " one" : ""}">${imgs.map((u, i) =>
+        `<img loading="lazy" decoding="async" src="${esc(u)}" alt="${esc(title)}, image ${i + 1}">`).join("")}</div>`
+    : "";
+
+  view.innerHTML = `
   <article class="article">
-    ${p.published ? "" : `<span class="badge draft">Draft preview</span>`}
-    <h1>${esc(p.title)}</h1>
-    <div class="muted">${fmtDate(p.created_at)} · ${readTime(p.content)} · by ${esc(CONFIG.SITE_NAME)}</div>
-    ${p.cover_image_url ? `<img class="cover" src="${esc(p.cover_image_url)}" alt="">` : ""}
-    <div class="prose">${html}</div>${gallery}
-    <div class="share"><strong>Share:</strong>
-      <button class="btn btn-ghost btn-sm" id="cp">🔗 Copy link</button>
-      <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://www.facebook.com/sharer/sharer.php?u=${enc}">Facebook</a>
-      <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://wa.me/?text=${t}%20${enc}">WhatsApp</a>
-      <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="https://twitter.com/intent/tweet?text=${t}&url=${enc}">X</a>
-      ${navigator.share ? `<button class="btn btn-primary btn-sm" id="sh">Share…</button>` : ""}
-    </div></article>`;
+    <div class="article-head">
+      <a class="back" href="/">${icon("arrowLeft", 18)}<span>All articles</span></a>
+      ${p.published ? "" : `<div><span class="badge draft">Draft preview</span></div>`}
+      <h1>${esc(title)}</h1>
+      <div class="meta">
+        <span>By ${esc(CONFIG.SITE_NAME)}</span>
+        <time datetime="${esc(p.created_at)}">${fmtDate(p.created_at)}</time>
+        <span>${readTime(p.content)}</span>
+      </div>
+    </div>
+    ${p.cover_image_url ? `<img class="cover" src="${esc(p.cover_image_url)}" alt="" fetchpriority="high">` : ""}
+    ${(p.content || "").trim() ? `<div class="prose">${renderMD(p.content)}</div>` : ""}
+    ${gallery}
+    <section class="share" aria-labelledby="share-t">
+      <h2 class="share-title" id="share-t">Share this article</h2>
+      <div class="share-row">
+        ${navigator.share ? `<button type="button" class="btn btn-primary btn-sm" id="sh">${icon("share", 16)}<span>Share</span></button>` : ""}
+        <button type="button" class="btn btn-ghost btn-sm" id="cp">${icon("link", 16)}<span>Copy link</span></button>
+        <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener noreferrer" href="https://www.facebook.com/sharer/sharer.php?u=${enc}">${icon("facebook", 16)}<span>Facebook</span></a>
+        <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener noreferrer" href="https://wa.me/?text=${t}%20${enc}">${icon("whatsapp", 16)}<span>WhatsApp</span></a>
+        <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener noreferrer" href="https://x.com/intent/post?text=${t}&url=${enc}">${icon("x", 16)}<span>X</span></a>
+      </div>
+    </section>
+  </article>
+  <section class="more" id="more" hidden></section>`;
+
   $("#cp").onclick = () => copy(url);
-  if ($("#sh")) $("#sh").onclick = () => navigator.share({ title: p.title, url });
-})();
+  const sh = $("#sh");
+  if (sh) sh.onclick = () => navigator.share({ title, url }).catch(() => {});
+  readingProgress();
+  window.scrollTo(0, 0);
+}
+
+async function loadMore(currentId) {
+  try {
+    const { data } = await sb
+      .from("posts")
+      .select("id,title,slug,content,cover_image_url,images,created_at")
+      .eq("published", true)
+      .neq("id", currentId)
+      .order("created_at", { ascending: false })
+      .limit(3);
+    if (!data || !data.length) return;
+    const box = $("#more");
+    box.innerHTML = `<div class="section-head"><h2>More articles</h2><a class="more-all" href="/">View all ${icon("arrowRight", 16)}</a></div>
+      <div class="grid">${data.map(cardHTML).join("")}</div>`;
+    box.hidden = false;
+  } catch { /* related posts are optional */ }
+}
+
+async function load() {
+  if (!slug) {
+    view.innerHTML = stateHTML("file", "Article not found", "This link may be wrong or the article was removed.",
+      `<a class="btn btn-primary" href="/">${icon("arrowLeft", 16)}<span>Back to articles</span></a>`);
+    return;
+  }
+  try {
+    if (!sb) throw new Error("offline");
+    const { data: p, error } = await sb.from("posts").select("*").eq("slug", slug).maybeSingle();
+    if (error) throw error;
+    if (!p) {
+      view.innerHTML = stateHTML("file", "Article not found", "This link may be wrong or the article was removed.",
+        `<a class="btn btn-primary" href="/">${icon("arrowLeft", 16)}<span>Back to articles</span></a>`);
+      return;
+    }
+    renderArticle(p);
+    loadMore(p.id);
+  } catch (e) {
+    view.innerHTML = stateHTML("alert", "Couldn't load this article", "Check your connection and try again.",
+      `<button type="button" class="btn btn-ghost" id="retry">${icon("refresh", 16)}<span>Try again</span></button>`);
+    $("#retry").onclick = () => (window.supabase ? load() : location.reload());
+  }
+}
+load();
 </script>
 </body>
 </html>

@@ -2,16 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <title>Admin — Rahat Khan</title>
 <link rel="icon" href="/images/rahat.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Sans+Bengali:wght@400;500;600&family=Noto+Serif+Bengali:wght@400;600&display=swap" rel="stylesheet">
 <script>document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light")</script>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <div id="header"></div>
-<main class="container" id="view"></main>
+<main id="main" class="container admin" tabindex="-1"><div id="view"></div></main>
 <div id="footer"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -19,14 +22,29 @@
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script src="/app.js"></script>
 <script>
-mountChrome();
+mountChrome("admin");
 const view = $("#view");
-const nav = (h) => { history.pushState(null, "", location.pathname + (h ? "#" + h : "")); render(); };
-document.addEventListener("click", (e) => { const a = e.target.closest("[data-nav]"); if (a) { e.preventDefault(); nav(a.dataset.nav); } });
+let cleanup = null;      // removes listeners of the current screen
+let dashFilter = "all";  // all | live | draft
+
+const nav = (h) => {
+  history.pushState(null, "", location.pathname + (h ? "#" + h : ""));
+  render();
+};
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("[data-nav]");
+  if (a) { e.preventDefault(); nav(a.dataset.nav); }
+});
 window.addEventListener("popstate", render);
-sb.auth.onAuthStateChange((ev) => { if (ev === "SIGNED_IN" || ev === "SIGNED_OUT") render(); });
+
+const loadingHTML = `<div aria-hidden="true" style="padding-top:36px">
+  <div class="sk" style="height:36px;width:200px"></div>
+  <div class="sk" style="height:84px;margin-top:24px;border-radius:12px"></div>
+  <div class="sk" style="height:260px;margin-top:24px;border-radius:12px"></div></div>`;
 
 async function render() {
+  if (cleanup) { cleanup(); cleanup = null; }
+  if (!sb) return view.innerHTML = fatalHTML();
   const { data } = await sb.auth.getSession();
   if (!data.session) return loginView();
   const h = location.hash.slice(1);
@@ -35,115 +53,411 @@ async function render() {
   return dashView();
 }
 
-/* ---- Login ---- */
-function loginView() {
-  view.innerHTML = `<div class="panel login"><h1>Admin sign in</h1><p class="muted" style="margin:0 0 20px">Enter your username and password.</p>
-    <div class="field"><label>Username</label><input class="input" id="u" autocapitalize="none" autocomplete="username"></div>
-    <div class="field"><label>Password</label><input class="input" id="pw" type="password" autocomplete="current-password"></div>
-    <div class="err" id="e"></div><button class="btn btn-primary" id="go" style="width:100%;justify-content:center">Sign in</button></div>`;
-  const go = async () => {
-    let u = $("#u").value.trim(); if (!u) return;
-    if (!u.includes("@")) u += CONFIG.EMAIL_DOMAIN;
-    $("#go").disabled = true;
-    const { error } = await sb.auth.signInWithPassword({ email: u, password: $("#pw").value });
-    if (error) { $("#e").textContent = "Incorrect username or password."; $("#go").disabled = false; }
-  };
-  $("#go").onclick = go; $("#pw").onkeydown = (e) => e.key === "Enter" && go();
+function fatalHTML() {
+  return `<div class="empty" style="padding-top:96px">${icon("alert", 32)}<h3>Couldn't connect</h3>
+    <p>The page could not load its data service. Check your connection and reload.</p>
+    <button type="button" class="btn btn-ghost" onclick="location.reload()">${icon("refresh", 16)}<span>Reload</span></button></div>`;
 }
 
-/* ---- Dashboard ---- */
+/* Re-render only when the signed-in state really changes. Supabase also fires
+   SIGNED_IN when the tab regains focus; re-rendering then wiped unsaved text. */
+(async () => {
+  if (sb) {
+    const { data } = await sb.auth.getSession();
+    let signedIn = !!data.session;
+    sb.auth.onAuthStateChange((_ev, session) => {
+      const now = !!session;
+      if (now === signedIn) return;
+      signedIn = now;
+      render();
+    });
+  }
+  render();
+})();
+
+/* ---------- Login ---------- */
+function loginView() {
+  document.title = "Sign in — Admin";
+  view.innerHTML = `
+  <div class="auth"><form class="auth-card" id="f" novalidate>
+    <h1>Admin sign in</h1>
+    <p class="muted">Sign in with your username and password to manage articles.</p>
+    <div class="field"><label for="u">Username or email</label>
+      <input class="input" id="u" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="username" required></div>
+    <div class="field"><label for="pw">Password</label>
+      <div class="pw"><input class="input" id="pw" type="password" autocomplete="current-password" required>
+        <button type="button" id="eye" aria-label="Show password">${icon("eye", 20)}</button></div></div>
+    <div class="err" id="e" role="alert"></div>
+    <button class="btn btn-primary" id="go" type="submit" style="width:100%">Sign in</button>
+  </form></div>`;
+
+  const err = (m) => ($("#e").innerHTML = m ? `${icon("alert", 16)}<span>${esc(m)}</span>` : "");
+  $("#eye").onclick = () => {
+    const pw = $("#pw"), show = pw.type === "password";
+    pw.type = show ? "text" : "password";
+    $("#eye").innerHTML = icon(show ? "eyeOff" : "eye", 20);
+    $("#eye").setAttribute("aria-label", show ? "Hide password" : "Show password");
+  };
+  $("#f").onsubmit = async (ev) => {
+    ev.preventDefault();
+    let u = $("#u").value.trim();
+    const pw = $("#pw").value;
+    if (!u || !pw) return err("Enter your username and password.");
+    if (!u.includes("@")) u += CONFIG.EMAIL_DOMAIN;
+    err("");
+    const b = $("#go");
+    b.disabled = true; b.textContent = "Signing in…"; b.setAttribute("aria-busy", "true");
+    try {
+      const { error } = await sb.auth.signInWithPassword({ email: u, password: pw });
+      if (error) throw error;
+    } catch (e) {
+      err(/fetch|network/i.test(e.message || "") ? "Couldn't reach the server. Check your connection." : "Incorrect username or password.");
+      b.disabled = false; b.textContent = "Sign in"; b.removeAttribute("aria-busy");
+    }
+  };
+  $("#u").focus();
+}
+
+/* ---------- Dashboard ---------- */
 async function dashView() {
-  view.innerHTML = `<div class="skeleton" style="margin-top:40px"></div>`;
-  const { data = [], error } = await sb.from("posts").select("*").order("created_at", { ascending: false });
+  document.title = "Posts — Admin";
+  view.innerHTML = loadingHTML;
+  let data = [], error = null;
+  try {
+    const r = await sb.from("posts")
+      .select("id,title,slug,cover_image_url,images,published,created_at")
+      .order("created_at", { ascending: false });
+    data = r.data || [];
+    error = r.error;
+  } catch (e) { error = e; }
+
   const live = data.filter((p) => p.published).length;
-  view.innerHTML = `<div class="toolbar"><h1>Dashboard</h1><div class="actions">
-      <button class="btn btn-primary" data-nav="new">+ New post</button>
-      <button class="btn btn-ghost" id="out">Sign out</button></div></div>
-    <div class="stats"><div class="stat"><b>${data.length}</b><span class="muted">Total</span></div>
-      <div class="stat"><b>${live}</b><span class="muted">Published</span></div>
-      <div class="stat"><b>${data.length - live}</b><span class="muted">Drafts</span></div></div>
-    ${error ? `<p class="err">${esc(error.message)}</p>` : ""}
-    <div class="list">${data.map((p) => {
+  const visible = () => data.filter((p) => dashFilter === "all" || (dashFilter === "live") === p.published);
+
+  view.innerHTML = `
+    <div class="page-head">
+      <div><h1>Posts</h1><p class="muted">Write, publish and manage your articles.</p></div>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" data-nav="new">${icon("plus", 18)}<span>New post</span></button>
+        <button type="button" class="btn btn-ghost" id="out">${icon("logout", 18)}<span>Sign out</span></button>
+      </div>
+    </div>
+    ${error ? `<div class="err" role="alert">${icon("alert", 16)}<span>${esc(error.message || "Couldn't load posts.")}</span></div>` : ""}
+    <div class="stats">
+      <div class="stat"><b>${data.length}</b><span>Total</span></div>
+      <div class="stat"><b>${live}</b><span>Published</span></div>
+      <div class="stat"><b>${data.length - live}</b><span>Drafts</span></div>
+    </div>
+    <div class="list-bar">
+      <div class="seg" role="group" aria-label="Filter posts">
+        <button type="button" data-f="all" aria-pressed="${dashFilter === "all"}">All</button>
+        <button type="button" data-f="live" aria-pressed="${dashFilter === "live"}">Published</button>
+        <button type="button" data-f="draft" aria-pressed="${dashFilter === "draft"}">Drafts</button>
+      </div>
+    </div>
+    <div class="list" id="rows"></div>`;
+
+  const rows = $("#rows");
+  const drawRows = () => {
+    const items = visible();
+    rows.innerHTML = items.map((p) => {
       const img = p.cover_image_url || (p.images && p.images[0]);
-      return `<div class="item">${img ? `<img class="mini" src="${esc(img)}" alt="">` : `<div class="mini"></div>`}
-        <div class="grow"><div class="item-title">${esc(p.title)}<span class="badge ${p.published ? "live" : "draft"}">${p.published ? "Published" : "Draft"}</span></div>
-        <div class="muted">${fmtDate(p.created_at)}</div></div>
+      return `<div class="item">
+        ${img ? `<img class="mini" src="${esc(img)}" alt="" loading="lazy">` : `<div class="mini">${icon("file", 22)}</div>`}
+        <div class="item-main">
+          <a class="item-title" href="#edit/${p.id}" data-nav="edit/${p.id}">${esc(p.title)}</a>
+          <div class="meta"><span class="badge ${p.published ? "live" : "draft"}">${p.published ? "Published" : "Draft"}</span><time datetime="${esc(p.created_at)}">${fmtDate(p.created_at)}</time></div>
+        </div>
         <div class="actions">
-          <a class="btn btn-ghost btn-sm" href="${postPath(p.slug)}" target="_blank">View</a>
-          <button class="btn btn-ghost btn-sm" data-nav="edit/${p.id}">Edit</button>
-          <button class="btn btn-ghost btn-sm" data-cp="${esc(p.slug)}">Copy link</button>
-          <button class="btn btn-ghost btn-sm" data-pub="${p.id}" data-v="${p.published}">${p.published ? "Unpublish" : "Publish"}</button>
-          <button class="btn btn-danger btn-sm" data-del="${p.id}">Delete</button></div></div>`;
-    }).join("") || `<div class="empty">No posts yet. Create your first one!</div>`}</div>`;
+          <button type="button" class="btn btn-ghost btn-sm keep" data-nav="edit/${p.id}">${icon("edit", 16)}<span class="lbl">Edit</span></button>
+          <a class="btn btn-ghost btn-sm" href="${postPath(p.slug)}" target="_blank" rel="noopener" aria-label="View post" title="View post">${icon("external", 16)}<span class="lbl">View</span></a>
+          <button type="button" class="btn btn-ghost btn-sm" data-cp="${esc(p.slug)}" aria-label="Copy link" title="Copy link">${icon("link", 16)}<span class="lbl">Copy link</span></button>
+          <button type="button" class="btn btn-ghost btn-sm" data-pub="${p.id}" data-v="${p.published}" aria-label="${p.published ? "Unpublish" : "Publish"}" title="${p.published ? "Unpublish" : "Publish"}">${icon(p.published ? "eyeOff" : "eye", 16)}<span class="lbl">${p.published ? "Unpublish" : "Publish"}</span></button>
+          <button type="button" class="btn btn-danger btn-sm" data-del="${p.id}" aria-label="Delete post" title="Delete post">${icon("trash", 16)}<span class="lbl">Delete</span></button>
+        </div></div>`;
+    }).join("") || `<div class="empty">${icon("file", 32)}<h3>${data.length ? "No posts in this view" : "No posts yet"}</h3>
+      <p>${data.length ? "Try a different filter." : "Create your first article to get started."}</p>
+      ${data.length ? "" : `<button type="button" class="btn btn-primary" data-nav="new">${icon("plus", 18)}<span>New post</span></button>`}</div>`;
+  };
+  drawRows();
 
   $("#out").onclick = () => sb.auth.signOut();
-  view.querySelectorAll("[data-cp]").forEach((b) => (b.onclick = () => copy(postUrl(b.dataset.cp))));
-  view.querySelectorAll("[data-pub]").forEach((b) => (b.onclick = async () => {
-    await sb.from("posts").update({ published: b.dataset.v !== "true" }).eq("id", b.dataset.pub);
-    toast(b.dataset.v === "true" ? "Moved to drafts" : "Published ✓"); dashView();
+
+  view.querySelectorAll("[data-f]").forEach((b) => (b.onclick = () => {
+    dashFilter = b.dataset.f;
+    view.querySelectorAll("[data-f]").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    drawRows();
   }));
-  view.querySelectorAll("[data-del]").forEach((b) => (b.onclick = async () => {
-    if (!confirm("Delete this post permanently?")) return;
-    await sb.from("posts").delete().eq("id", b.dataset.del); toast("Post deleted"); dashView();
-  }));
+
+  rows.addEventListener("click", async (e) => {
+    const cp = e.target.closest("[data-cp]");
+    if (cp) return copy(postUrl(cp.dataset.cp));
+
+    const pub = e.target.closest("[data-pub]");
+    if (pub) {
+      const makeLive = pub.dataset.v !== "true";
+      pub.disabled = true;
+      const { data: r, error: er } = await sb.from("posts").update({ published: makeLive }).eq("id", pub.dataset.pub).select("id");
+      if (er || !r || !r.length) { pub.disabled = false; return toast("Couldn't update the post. Try again.", "error"); }
+      toast(makeLive ? "Post published" : "Post unpublished");
+      return dashView();
+    }
+
+    const del = e.target.closest("[data-del]");
+    if (del) {
+      const post = data.find((p) => p.id === del.dataset.del);
+      const ok = await confirmDialog({
+        title: "Delete this post?",
+        message: `"${post ? post.title : "This post"}" will be permanently removed. This can't be undone.`,
+        confirm: "Delete post", danger: true
+      });
+      if (!ok) return;
+      const { data: r, error: er } = await sb.from("posts").delete().eq("id", del.dataset.del).select("id");
+      if (er || !r || !r.length) return toast("Couldn't delete the post. Try again.", "error");
+      toast("Post deleted");
+      dashView();
+    }
+  });
 }
 
-/* ---- Editor ---- */
+/* ---------- Editor ---------- */
 async function editorView(id) {
+  view.innerHTML = loadingHTML;
   let p = { title: "", content: "", cover_image_url: "", images: [], published: true };
-  if (id) { const { data } = await sb.from("posts").select("*").eq("id", id).maybeSingle(); if (data) p = data; }
-  view.innerHTML = `<div class="toolbar"><h1>${id ? "Edit post" : "New post"}</h1><button class="btn btn-ghost" data-nav="">← Back</button></div>
-  <div class="panel">
-    <div class="field"><label>Title</label><input class="input" id="t" value="${esc(p.title)}" placeholder="Post title"></div>
-    <div class="field"><label>Cover image link <span class="muted">(optional)</span></label>
-      <input class="input" id="c" value="${esc(p.cover_image_url || "")}" placeholder="https://example.com/photo.jpg"></div>
-    <div class="field"><label>Article</label>
-      <div class="tabs"><button class="tab on" data-tab="w">Write</button><button class="tab" data-tab="p">Preview</button></div>
-      <textarea class="input" id="b" style="min-height:260px" placeholder="Write here… Markdown supported. Leave empty for a photo-only post.">${esc(p.content || "")}</textarea>
-      <div class="prose panel" id="pv" style="display:none"></div>
-      <div class="hint">Tip: put an image inside text with <code>![caption](image-link)</code></div></div>
-    <div class="field"><label>Image links <span class="muted">(one per line, shown as a gallery)</span></label>
-      <textarea class="input" id="i" placeholder="https://...jpg">${esc((p.images || []).join("\n"))}</textarea>
-      <div class="thumbs" id="th"></div></div>
-    <div class="field"><label>Status</label><select class="input" id="s"><option value="1" ${p.published ? "selected" : ""}>Published</option><option value="0" ${p.published ? "" : "selected"}>Draft</option></select></div>
-    <div class="err" id="e"></div>
-    <div class="actions"><button class="btn btn-primary" id="save">Save post</button><button class="btn btn-ghost" data-nav="">Cancel</button></div>
+
+  if (id) {
+    let res;
+    try { res = await sb.from("posts").select("*").eq("id", id).maybeSingle(); } catch (e) { res = { error: e }; }
+    if (res.error || !res.data) {
+      document.title = "Post not found — Admin";
+      view.innerHTML = `<div class="empty" style="padding-top:96px">${icon("alert", 32)}<h3>${res.error ? "Couldn't load this post" : "Post not found"}</h3>
+        <p>${res.error ? "Check your connection and try again." : "It may have been deleted."}</p>
+        <button type="button" class="btn btn-ghost" data-nav="">${icon("arrowLeft", 16)}<span>Back to posts</span></button></div>`;
+      return;
+    }
+    p = res.data;
+  }
+  document.title = (id ? "Edit post" : "New post") + " — Admin";
+
+  view.innerHTML = `
+  <div class="page-head">
+    <div><h1>${id ? "Edit post" : "New post"}</h1>
+      <p class="muted" id="slugnote">${id ? "Address: " + esc(postPath(p.slug)) : "The web address is created from the title."}</p></div>
+    <button type="button" class="btn btn-ghost" id="back">${icon("arrowLeft", 18)}<span>Back to posts</span></button>
+  </div>
+
+  <div class="editor">
+    <div>
+      <div class="field"><label for="t">Title</label>
+        <input class="input title-input" id="t" value="${esc(p.title)}" placeholder="Post title" autocomplete="off"></div>
+
+      <div class="field"><span class="label" id="bl">Article</span>
+        <div class="md-bar">
+          <div class="md-tools" role="toolbar" aria-label="Formatting">
+            <button type="button" data-md="bold" aria-label="Bold" title="Bold">${icon("bold", 18)}</button>
+            <button type="button" data-md="italic" aria-label="Italic" title="Italic">${icon("italic", 18)}</button>
+            <button type="button" data-md="heading" aria-label="Heading" title="Heading">${icon("heading", 18)}</button>
+            <button type="button" data-md="quote" aria-label="Quote" title="Quote">${icon("quote", 18)}</button>
+            <button type="button" data-md="list" aria-label="Bulleted list" title="Bulleted list">${icon("list", 18)}</button>
+            <button type="button" data-md="link" aria-label="Link" title="Link">${icon("link", 18)}</button>
+            <button type="button" data-md="image" aria-label="Image" title="Image">${icon("image", 18)}</button>
+          </div>
+          <div class="seg" role="group" aria-label="Editor mode">
+            <button type="button" data-tab="w" aria-pressed="true">Write</button>
+            <button type="button" data-tab="p" aria-pressed="false">Preview</button>
+          </div>
+        </div>
+        <textarea class="input md-area" id="b" aria-labelledby="bl" placeholder="Write here. Markdown is supported. Leave empty for a photo-only post.">${esc(p.content || "")}</textarea>
+        <div class="preview" id="pv" hidden><div class="prose" id="pvb"></div></div>
+        <div class="hint" id="wc"></div>
+      </div>
+    </div>
+
+    <aside>
+      <div class="side-card">
+        <h2>Cover image</h2>
+        <div class="field"><label for="c">Image link <span class="muted">(optional)</span></label>
+          <input class="input" id="c" type="url" inputmode="url" value="${esc(p.cover_image_url || "")}" placeholder="https://example.com/photo.jpg"></div>
+        <div class="cover-preview" id="cv"></div>
+      </div>
+      <div class="side-card">
+        <h2>Gallery</h2>
+        <div class="field"><label for="i">Image links <span class="muted">(one per line)</span></label>
+          <textarea class="input" id="i" placeholder="https://example.com/one.jpg" spellcheck="false">${esc((p.images || []).join("\n"))}</textarea>
+          <div class="thumbs" id="th"></div></div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="err" id="e" role="alert" style="margin-top:20px"></div>
+  <div class="savebar" style="margin-top:8px">
+    <div class="seg" role="radiogroup" aria-label="Status">
+      <label><input type="radio" name="st" value="1" ${p.published ? "checked" : ""}><span>Published</span></label>
+      <label><input type="radio" name="st" value="0" ${p.published ? "" : "checked"}><span>Draft</span></label>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn btn-ghost" id="cancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="save">${icon("check", 18)}<span>Save post</span></button>
+    </div>
   </div>`;
 
-  const thumbs = () => {
-    const urls = [$("#c").value.trim(), ...lines($("#i").value)].filter(Boolean);
-    $("#th").innerHTML = urls.map((u) => `<img src="${esc(u)}" alt="" onerror="this.outerHTML='<span class=err>⚠ Broken link</span>'">`).join("");
-  };
-  $("#c").oninput = $("#i").oninput = thumbs; thumbs();
+  const body = $("#b");
+  let dirty = false;
+  const mark = () => (dirty = true);
 
+  /* leave warnings */
+  const onUnload = (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } };
+  const onKey = (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(); }
+  };
+  window.addEventListener("beforeunload", onUnload);
+  document.addEventListener("keydown", onKey);
+  cleanup = () => {
+    window.removeEventListener("beforeunload", onUnload);
+    document.removeEventListener("keydown", onKey);
+  };
+
+  const leave = async () => {
+    if (dirty) {
+      const ok = await confirmDialog({
+        title: "Discard changes?", message: "You have unsaved changes that will be lost.",
+        confirm: "Discard", cancel: "Keep editing", danger: true
+      });
+      if (!ok) return;
+    }
+    dirty = false;
+    nav("");
+  };
+  $("#back").onclick = $("#cancel").onclick = leave;
+
+  /* word count */
+  const count = () => {
+    const n = wordCount(body.value);
+    $("#wc").textContent = n ? `${n} ${n === 1 ? "word" : "words"}, ${readTime(body.value)}` : "Markdown supported. Use the toolbar to format text.";
+  };
+  count();
+  body.addEventListener("input", count);
+  view.querySelectorAll("input,textarea").forEach((el) => el.addEventListener("input", mark));
+  view.querySelectorAll('input[name="st"]').forEach((el) => el.addEventListener("change", mark));
+
+  /* image previews */
+  const thumbs = () => {
+    const cover = $("#c").value.trim();
+    $("#cv").innerHTML = cover && isUrl(cover) ? `<img src="${esc(cover)}" alt="Cover preview">` : "";
+    $("#th").innerHTML = lines($("#i").value).filter(isUrl).map((u) => `<img src="${esc(u)}" alt="">`).join("");
+  };
+  const imgFail = (e) => {
+    if (e.target.tagName !== "IMG") return;
+    const s = document.createElement("span");
+    s.className = "bad";
+    s.textContent = "This link can't be loaded as an image.";
+    e.target.replaceWith(s);
+  };
+  $("#cv").addEventListener("error", imgFail, true);
+  $("#th").addEventListener("error", imgFail, true);
+  $("#c").addEventListener("input", thumbs);
+  $("#i").addEventListener("input", thumbs);
+  thumbs();
+
+  /* write / preview */
   view.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => {
     const prev = b.dataset.tab === "p";
-    view.querySelectorAll(".tab").forEach((x) => x.classList.toggle("on", x === b));
-    $("#b").style.display = prev ? "none" : ""; $("#pv").style.display = prev ? "" : "none";
-    if (prev) $("#pv").innerHTML = DOMPurify.sanitize(marked.parse($("#b").value || "*Nothing to preview*"));
+    view.querySelectorAll("[data-tab]").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    body.hidden = prev;
+    $("#pv").hidden = !prev;
+    view.querySelectorAll("[data-md]").forEach((x) => (x.disabled = prev));
+    if (prev) $("#pvb").innerHTML = body.value.trim() ? renderMD(body.value) : '<p class="muted">Nothing to preview yet.</p>';
   }));
 
-  $("#save").onclick = async () => {
-    const title = $("#t").value.trim(), content = $("#b").value.trim(), cover = $("#c").value.trim(), images = lines($("#i").value);
-    const err = (m) => ($("#e").textContent = m);
-    if (!title) return err("Please add a title.");
-    if (!content && !cover && !images.length) return err("Add some text or at least one image link.");
-    if ([cover, ...images].filter(Boolean).some((u) => !isUrl(u))) return err("Image links must start with http:// or https://");
-    $("#save").disabled = true; err("");
-    const row = { title, content, cover_image_url: cover || null, images, published: $("#s").value === "1", updated_at: new Date().toISOString() };
-    let res;
-    if (id) res = await sb.from("posts").update(row).eq("id", id);
-    else {
-      let slug = slugify(title);
-      const { data: ex } = await sb.from("posts").select("id").eq("slug", slug).maybeSingle();
-      if (ex) slug += "-" + Date.now().toString(36).slice(-4);
-      res = await sb.from("posts").insert({ ...row, slug });
-    }
-    if (res.error) { err(res.error.message); $("#save").disabled = false; return; }
-    toast("Saved ✓"); nav("");
+  /* markdown toolbar */
+  const edit = (fn) => {
+    body.focus();
+    fn();
+    body.dispatchEvent(new Event("input", { bubbles: true }));
   };
+  const wrap = (a, b, ph) => edit(() => {
+    const s = body.selectionStart, e = body.selectionEnd, sel = body.value.slice(s, e) || ph;
+    body.setRangeText(a + sel + b, s, e, "end");
+    body.setSelectionRange(s + a.length, s + a.length + sel.length);
+  });
+  const prefix = (pre) => edit(() => {
+    const v = body.value, s = body.selectionStart, e = body.selectionEnd;
+    const from = v.lastIndexOf("\n", s - 1) + 1;
+    const block = v.slice(from, e).split("\n").map((l) => pre + l).join("\n");
+    body.setRangeText(block, from, e, "end");
+  });
+  const tail = (a, ph, tailTxt) => edit(() => {
+    const s = body.selectionStart, e = body.selectionEnd, sel = body.value.slice(s, e) || ph;
+    const out = a + sel + tailTxt;
+    body.setRangeText(out, s, e, "end");
+    const u = s + a.length + sel.length + 2;      // select the url placeholder
+    body.setSelectionRange(u, u + tailTxt.length - 3);
+  });
+  const MD = {
+    bold: () => wrap("**", "**", "bold text"),
+    italic: () => wrap("*", "*", "italic text"),
+    heading: () => prefix("## "),
+    quote: () => prefix("> "),
+    list: () => prefix("- "),
+    link: () => tail("[", "link text", "](https://)"),
+    image: () => tail("![", "caption", "](https://)")
+  };
+  view.querySelectorAll("[data-md]").forEach((b) => (b.onclick = () => MD[b.dataset.md]()));
+
+  /* save */
+  async function save() {
+    const btn = $("#save");
+    if (btn.disabled) return;
+    const title = $("#t").value.trim(), content = body.value.trim(),
+      cover = $("#c").value.trim(), images = lines($("#i").value);
+    const err = (m, focusSel) => {
+      $("#e").innerHTML = m ? `${icon("alert", 16)}<span>${esc(m)}</span>` : "";
+      if (m && focusSel) $(focusSel).focus();
+    };
+    if (!title) return err("Add a title before saving.", "#t");
+    if (!content && !cover && !images.length) return err("Add some text or at least one image link.", "#b");
+    if (cover && !isUrl(cover)) return err("The cover link must start with http:// or https://", "#c");
+    if (images.some((u) => !isUrl(u))) return err("Each gallery link must start with http:// or https://", "#i");
+
+    err("");
+    btn.disabled = true; btn.setAttribute("aria-busy", "true");
+    btn.innerHTML = "<span>Saving…</span>";
+    const restore = () => {
+      btn.disabled = false; btn.removeAttribute("aria-busy");
+      btn.innerHTML = `${icon("check", 18)}<span>Save post</span>`;
+    };
+    const row = {
+      title, content, cover_image_url: cover || null, images,
+      published: view.querySelector('input[name="st"]:checked').value === "1",
+      updated_at: new Date().toISOString()
+    };
+
+    try {
+      if (id) {
+        const { data, error } = await sb.from("posts").update(row).eq("id", id).select("id");
+        if (error) throw error;
+        if (!data || !data.length) throw new Error("Couldn't save. You may have been signed out. Reload and sign in again.");
+      } else {
+        const base = slugify(title);
+        let slug = base, res;
+        for (let n = 0; n < 4; n++) {
+          res = await sb.from("posts").insert({ ...row, slug }).select("id").single();
+          if (!res.error || res.error.code !== "23505") break;   // retry only on duplicate slug
+          slug = base + "-" + Math.random().toString(36).slice(2, 6);
+        }
+        if (res.error) throw res.error;
+      }
+    } catch (e) {
+      err(e.message || "Couldn't save the post. Try again.");
+      return restore();
+    }
+    dirty = false;
+    toast("Post saved");
+    nav("");
+  }
+  $("#save").onclick = save;
+  if (!id) $("#t").focus();
 }
-render();
 </script>
 </body>
 </html>

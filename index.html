@@ -2,32 +2,45 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Rahat Khan — Blog</title>
-<meta name="description" content="Articles and stories by Rahat Khan.">
+<meta name="description" content="Thoughts, stories and ideas by Rahat Khan.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Rahat Khan — Blog">
+<meta property="og:description" content="Thoughts, stories and ideas by Rahat Khan.">
 <link rel="icon" href="/images/rahat.png">
-<script>document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light")</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Sans+Bengali:wght@400;500;600&family=Noto+Serif+Bengali:wght@400;600&display=swap" rel="stylesheet">
+<script>document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light")</script>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <div id="header"></div>
-<main class="container">
-  <section class="hero">
-    <div class="eyebrow"><span class="dot"></span> Writing regularly</div>
-    <h1 id="h-name"></h1>
+<main id="main" class="container" tabindex="-1">
+  <section class="masthead">
+    <h1 id="h-name">Rahat Khan</h1>
     <p id="h-tag"></p>
     <div class="search-wrap">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      <input class="search" id="q" type="search" placeholder="Search articles…" aria-label="Search articles">
+      <span class="search-ico" id="qi"></span>
+      <input class="input search" id="q" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off" enterkeyhint="search">
+      <button type="button" class="search-clear" id="qc" aria-label="Clear search" hidden></button>
     </div>
   </section>
+
   <div class="section-head">
     <h2>Latest articles</h2>
-    <span class="count" id="count"></span>
+    <span class="muted" id="count" aria-live="polite"></span>
   </div>
-  <div class="grid" id="grid"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+
+  <div id="list" aria-busy="true">
+    <div class="grid" aria-hidden="true">
+      <div class="sk-card"><div class="sk img"></div><div class="sk line s"></div><div class="sk line l"></div><div class="sk line m"></div></div>
+      <div class="sk-card"><div class="sk img"></div><div class="sk line s"></div><div class="sk line l"></div><div class="sk line m"></div></div>
+      <div class="sk-card"><div class="sk img"></div><div class="sk line s"></div><div class="sk line l"></div><div class="sk line m"></div></div>
+    </div>
+  </div>
+  <noscript><p class="muted">JavaScript is required to load articles.</p></noscript>
 </main>
 <div id="footer"></div>
 
@@ -37,43 +50,78 @@
 mountChrome("home");
 $("#h-name").textContent = CONFIG.SITE_NAME;
 $("#h-tag").textContent = CONFIG.TAGLINE;
+$("#qi").innerHTML = icon("search", 18);
+$("#qc").innerHTML = icon("close", 16);
+
+const list = $("#list"), count = $("#count"), input = $("#q"), clearBtn = $("#qc");
 let posts = [];
 
-const arrowSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>`;
-
-function draw(list) {
-  $("#count").textContent = list.length + (list.length === 1 ? " article" : " articles");
-  $("#grid").innerHTML = list.length ? list.map((p, i) => {
-    const img = p.cover_image_url || (p.images && p.images[0]);
-    const ex = excerpt(p.content);
-    return `<a class="card reveal" href="${postPath(p.slug)}" style="transition-delay:${i * 40}ms">
-      <div class="thumb-wrap">
-        ${img ? `<img class="thumb" loading="lazy" src="${esc(img)}" alt="">` : `<div class="thumb"></div>`}
-      </div>
-      <div class="card-body">
-        <div class="meta"><span>${fmtDate(p.created_at)}</span><span class="sep"></span><span>${readTime(p.content)}</span></div>
-        <h2>${esc(p.title)}</h2>
-        ${ex ? `<p>${esc(ex)}…</p>` : ""}
-        <span class="read-more">Read article ${arrowSvg}</span>
-      </div>
-    </a>`;
-  }).join("") : `<div class="empty">No articles found.</div>`;
-  requestAnimationFrame(() => {
-    document.querySelectorAll(".reveal").forEach(el => el.classList.add("in"));
-  });
+function showState(iconName, title, text, btnId, btnLabel) {
+  list.setAttribute("aria-busy", "false");
+  list.innerHTML = `<div class="empty">${icon(iconName, 32)}<h3>${esc(title)}</h3><p>${esc(text)}</p>
+    ${btnId ? `<button type="button" class="btn btn-ghost" id="${btnId}">${esc(btnLabel)}</button>` : ""}</div>`;
 }
 
-(async () => {
-  const { data, error } = await sb.from("posts").select("id,title,slug,content,cover_image_url,images,created_at")
-    .eq("published", true).order("created_at", { ascending: false });
-  if (error) return ($("#grid").innerHTML = `<div class="empty">Could not load articles. Please try again.</div>`);
-  posts = data; draw(posts);
-})();
+function draw(items, query) {
+  list.setAttribute("aria-busy", "false");
+  count.textContent = items.length
+    ? `${items.length} ${query ? (items.length === 1 ? "result" : "results") : (items.length === 1 ? "article" : "articles")}`
+    : "";
 
-$("#q").oninput = (e) => {
-  const q = e.target.value.toLowerCase();
-  draw(posts.filter((p) => (p.title + " " + (p.content || "")).toLowerCase().includes(q)));
-};
+  if (!items.length) {
+    if (query) {
+      showState("search", "No articles found", `Nothing matches "${query}". Check the spelling or try another word.`, "reset", "Clear search");
+      $("#reset").onclick = clearSearch;
+    } else {
+      showState("file", "No articles yet", "New articles will appear here once they are published.");
+    }
+    return;
+  }
+
+  const featured = query ? null : items[0];
+  const rest = query ? items : items.slice(1);
+  list.innerHTML =
+    (featured ? featureHTML(featured) : "") +
+    (rest.length ? `<div class="grid">${rest.map(cardHTML).join("")}</div>` : "");
+}
+
+async function load() {
+  try {
+    if (!sb) throw new Error("offline");
+    const { data, error } = await sb
+      .from("posts")
+      .select("id,title,slug,content,cover_image_url,images,created_at")
+      .eq("published", true)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    posts = (data || []).map((p) => ({ ...p, _s: (p.title + " " + plain(p.content)).toLowerCase() }));
+    draw(posts, "");
+  } catch (e) {
+    showState("alert", "Couldn't load articles", "Check your connection and try again.", "retry", "Try again");
+    $("#retry").onclick = () => {
+      if (!window.supabase) return location.reload();
+      list.setAttribute("aria-busy", "true");
+      load();
+    };
+  }
+}
+
+function clearSearch() {
+  input.value = "";
+  clearBtn.hidden = true;
+  draw(posts, "");
+  input.focus();
+}
+
+input.addEventListener("input", () => {
+  const q = input.value.trim();
+  clearBtn.hidden = !input.value;
+  if (!posts.length) return;
+  draw(q ? posts.filter((p) => p._s.includes(q.toLowerCase())) : posts, q);
+});
+clearBtn.onclick = clearSearch;
+
+load();
 </script>
 </body>
 </html>
