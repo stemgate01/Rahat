@@ -122,6 +122,8 @@ input.addEventListener("input", () => {
 clearBtn.onclick = clearSearch;
 
 load();
+if (location.hash === "#search") { input.focus(); input.scrollIntoView({ block: "center" }); }
+addEventListener("hashchange", () => { if (location.hash === "#search") input.focus(); });
 </script>
 </body>
 </html>

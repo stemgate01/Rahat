@@ -5,7 +5,11 @@ const CONFIG = {
   EMAIL_DOMAIN: "@outlook.com",
   SITE_NAME: "Rahat Khan",
   TAGLINE: "Thoughts, stories and ideas, written simply.",
-  LOGO: "/images/rahat.png"
+  LOGO: "/images/rahat.png",
+  /* Optional footer links. Add your own, for example:
+     { type: "facebook", url: "https://facebook.com/yourpage" }
+     Types: facebook, x, whatsapp, email (use a mailto: link). */
+  SOCIAL: []
 };
 /* ================================= */
 
@@ -65,6 +69,11 @@ const ICONS = {
   moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
   close: '<path d="M18 6 6 18M6 6l12 12"/>',
+  arrowUp: '<path d="M12 19V5M5 12l7-7 7 7"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+  menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   arrowLeft: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
   arrowRight: '<path d="M5 12h14M12 5l7 7-7 7"/>',
   chevLeft: '<path d="m15 18-6-6 6-6"/>',
@@ -347,39 +356,126 @@ function applyTheme(t) {
 function mountChrome(active) {
   const initial = (CONFIG.SITE_NAME || "R").trim().charAt(0).toUpperCase();
   const dark = () => document.documentElement.dataset.theme === "dark";
+  const admin = active === "admin";
+
+  const brand = (cls = "") => `
+    <a class="brand ${cls}" href="/" aria-label="${esc(CONFIG.SITE_NAME)} home">
+      <span class="brand-mark" aria-hidden="true">${esc(initial)}<img src="${esc(CONFIG.LOGO)}" alt="" onerror="this.remove()"></span>
+      <span class="brand-name">${esc(CONFIG.SITE_NAME)}</span>
+    </a>`;
 
   $("#header").innerHTML = `
     <a class="skip" href="#main">Skip to content</a>
     <header class="site-header">
       <div class="container">
-        <a class="brand" href="/" aria-label="${esc(CONFIG.SITE_NAME)} home">
-          <span class="brand-mark" aria-hidden="true">${esc(initial)}<img src="${esc(CONFIG.LOGO)}" alt="" onerror="this.remove()"></span>
-          <span class="brand-name">${esc(CONFIG.SITE_NAME)}</span>
-        </a>
+        ${brand()}
         <nav class="nav" aria-label="Primary">
-          <a href="/" class="${active === "home" ? "active" : ""}"${active === "home" ? ' aria-current="page"' : ""}>${active === "admin" ? "View site" : "Home"}</a>
+          <a class="nav-link${active === "home" ? " active" : ""}" href="/"${active === "home" ? ' aria-current="page"' : ""}>${admin ? "View site" : "Home"}</a>
           <button type="button" class="icon-btn" id="theme"></button>
+          <button type="button" class="icon-btn" id="menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="drawer">${icon("menu", 22)}</button>
         </nav>
       </div>
-    </header>`;
+    </header>
+    <div class="drawer" id="drawer" hidden>
+      <div class="drawer-scrim" data-close></div>
+      <aside class="drawer-panel" role="dialog" aria-modal="true" aria-label="Menu">
+        <div class="drawer-top">
+          ${brand("drawer-brand")}
+          <button type="button" class="icon-btn" id="menu-close" aria-label="Close menu">${icon("close", 22)}</button>
+        </div>
+        <nav class="drawer-nav" aria-label="Menu">
+          <a href="/">${icon("home", 20)}<span>${admin ? "View site" : "Home"}</span></a>
+          ${admin ? "" : `<a href="/#search">${icon("search", 20)}<span>Search articles</span></a>`}
+          <a href="/admin">${icon("lock", 20)}<span>Admin</span></a>
+          <button type="button" id="theme2"></button>
+        </nav>
+        <p class="drawer-foot">&copy; ${new Date().getFullYear()} ${esc(CONFIG.SITE_NAME)}</p>
+      </aside>
+    </div>`;
 
   const paint = () => {
     const b = $("#theme");
     b.innerHTML = icon(dark() ? "sun" : "moon", 20);
     b.setAttribute("aria-label", dark() ? "Switch to light theme" : "Switch to dark theme");
+    $("#theme2").innerHTML = `${icon(dark() ? "sun" : "moon", 20)}<span>${dark() ? "Light theme" : "Dark theme"}</span>`;
   };
   paint();
-  $("#theme").onclick = () => { applyTheme(dark() ? "light" : "dark"); paint(); };
+  const flip = () => { applyTheme(dark() ? "light" : "dark"); paint(); };
+  $("#theme").onclick = $("#theme2").onclick = flip;
   applyTheme(document.documentElement.dataset.theme || "light");
+
+  /* three-bar menu drawer */
+  const drawer = $("#drawer"), openBtn = $("#menu-btn");
+  const onKey = (e) => {
+    if (e.key === "Escape") return closeMenu();
+    if (e.key !== "Tab") return;
+    const f = [...drawer.querySelectorAll("a[href],button")];
+    const i = f.indexOf(document.activeElement);
+    if (e.shiftKey && i <= 0) { e.preventDefault(); f[f.length - 1].focus(); }
+    else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+  };
+  function openMenu() {
+    drawer.hidden = false;
+    requestAnimationFrame(() => drawer.classList.add("open"));
+    openBtn.setAttribute("aria-expanded", "true");
+    document.documentElement.classList.add("lock");
+    document.addEventListener("keydown", onKey);
+    $("#menu-close").focus();
+  }
+  function closeMenu() {
+    drawer.classList.remove("open");
+    openBtn.setAttribute("aria-expanded", "false");
+    document.documentElement.classList.remove("lock");
+    document.removeEventListener("keydown", onKey);
+    setTimeout(() => { if (!drawer.classList.contains("open")) drawer.hidden = true; }, 220);
+    openBtn.focus();
+  }
+  openBtn.onclick = openMenu;
+  $("#menu-close").onclick = closeMenu;
+  drawer.addEventListener("click", (e) => {
+    if (e.target.closest("[data-close]")) return closeMenu();
+    const a = e.target.closest("a[href]");
+    if (a && a.getAttribute("href").startsWith("/#") && location.pathname === "/") closeMenu();
+  });
 
   const f = $("#footer");
   if (f) {
+    const LABEL = { facebook: "Facebook", x: "X", whatsapp: "WhatsApp", email: "Email" };
+    const social = (CONFIG.SOCIAL || [])
+      .filter((x) => LABEL[x.type] && /^(https?:|mailto:)/i.test(x.url || ""))
+      .map((x) => `<a class="foot-social" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" aria-label="${LABEL[x.type]}" title="${LABEL[x.type]}">${icon(x.type === "email" ? "mail" : x.type, 18)}</a>`)
+      .join("");
     f.innerHTML = `
       <footer class="site-footer">
         <div class="container">
-          <span>&copy; ${new Date().getFullYear()} ${esc(CONFIG.SITE_NAME)}. All rights reserved.</span>
-          <a href="/admin">Admin</a>
+          <div class="foot-grid">
+            <div class="foot-brand">
+              ${brand()}
+              <p>${esc(CONFIG.TAGLINE)}</p>
+              ${social ? `<div class="foot-socials">${social}</div>` : ""}
+            </div>
+            <nav class="foot-col" aria-label="Explore">
+              <h2>Explore</h2>
+              <a href="/">Latest articles</a>
+              ${admin ? "" : `<a href="/#search">Search articles</a>`}
+            </nav>
+            <nav class="foot-col" aria-label="Site">
+              <h2>Site</h2>
+              <a href="/admin">Admin sign in</a>
+              <button type="button" id="dark-link"></button>
+            </nav>
+          </div>
+          <div class="foot-bottom">
+            <span>&copy; ${new Date().getFullYear()} ${esc(CONFIG.SITE_NAME)}. All rights reserved.</span>
+            <button type="button" class="btn btn-ghost btn-sm" id="to-top">${icon("arrowUp", 16)}<span>Back to top</span></button>
+          </div>
         </div>
       </footer>`;
+    $("#to-top").onclick = () => window.scrollTo({ top: 0, behavior: "smooth" });
+    const paintLink = () => ($("#dark-link").textContent = dark() ? "Use light theme" : "Use dark theme");
+    paintLink();
+    $("#dark-link").onclick = () => { flip(); paintLink(); };
+    $("#theme").addEventListener("click", paintLink);
+    $("#theme2").addEventListener("click", paintLink);
   }
 }
