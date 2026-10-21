@@ -6,10 +6,14 @@ const CONFIG = {
   SITE_NAME: "Rahat Khan",
   TAGLINE: "Thoughts, stories and ideas, written simply.",
   LOGO: "/images/rahat.png",
-  /* Optional footer links. Add your own, for example:
-     { type: "facebook", url: "https://facebook.com/yourpage" }
-     Types: facebook, x, whatsapp, email (use a mailto: link). */
-  SOCIAL: []
+  EMAIL: "rahatkhan04@outlook.com",
+  /* Footer + home links. type: tiktok | instagram | facebook | x | whatsapp | email */
+  SOCIAL: [
+    { type: "tiktok",    handle: "@unpredictable_rahat", url: "https://www.tiktok.com/@unpredictable_rahat" },
+    { type: "instagram", handle: "@hi_im_rahat",         url: "https://www.instagram.com/hi_im_rahat" },
+    { type: "facebook",  handle: "Rahat Khan",           url: "https://www.facebook.com/share/1CTnugjfQC/" },
+    { type: "email",     handle: "rahatkhan04@outlook.com", url: "mailto:rahatkhan04@outlook.com" }
+  ]
 };
 /* ================================= */
 
@@ -96,6 +100,8 @@ const ICONS = {
   image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
   file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
   share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/>',
+  instagram: '<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/>',
+  tiktok: '<path d="M21 7.917v4.034a9.948 9.948 0 0 1-5-1.951v4.5a6.5 6.5 0 1 1-8-6.326v4.326a2.5 2.5 0 1 0 4 2v-11.5h4.083a6.005 6.005 0 0 0 4.917 4.917z"/>',
   refresh: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>'
 };
 
@@ -440,39 +446,46 @@ function mountChrome(active) {
 
   const f = $("#footer");
   if (f) {
-    const LABEL = { facebook: "Facebook", x: "X", whatsapp: "WhatsApp", email: "Email" };
-    const social = (CONFIG.SOCIAL || [])
-      .filter((x) => LABEL[x.type] && /^(https?:|mailto:)/i.test(x.url || ""))
-      .map((x) => `<a class="foot-social" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" aria-label="${LABEL[x.type]}" title="${LABEL[x.type]}">${icon(x.type === "email" ? "mail" : x.type, 18)}</a>`)
-      .join("");
+    const LABEL = { tiktok: "TikTok", instagram: "Instagram", facebook: "Facebook", x: "X", whatsapp: "WhatsApp", email: "Email" };
+    const links = (CONFIG.SOCIAL || []).filter((x) => LABEL[x.type] && /^(https?:|mailto:)/i.test(x.url || ""));
+    const ico = (t, n) => icon(t === "email" ? "mail" : t, n);
+    const rel = (u) => (u.startsWith("mailto:") ? "" : ' target="_blank" rel="noopener noreferrer"');
+    const socials = links.map((x) =>
+      `<a class="foot-social" href="${esc(x.url)}"${rel(x.url)} aria-label="${LABEL[x.type]}" title="${LABEL[x.type]}">${ico(x.type, 18)}</a>`).join("");
+    const connect = links.map((x) =>
+      `<a href="${esc(x.url)}"${rel(x.url)}>${ico(x.type, 16)}<span>${esc(x.type === "email" ? LABEL.email : LABEL[x.type])}<small>${esc(x.handle || "")}</small></span></a>`).join("");
     f.innerHTML = `
       <footer class="site-footer">
         <div class="container">
+          ${CONFIG.EMAIL ? `<div class="foot-cta">
+            <div><h2>Let&rsquo;s connect</h2><p>Questions, ideas or collaborations? Send me a message.</p></div>
+            <a class="btn btn-primary" href="mailto:${esc(CONFIG.EMAIL)}">${icon("mail", 18)}<span>Email me</span></a>
+          </div>` : ""}
           <div class="foot-grid">
             <div class="foot-brand">
               ${brand()}
               <p>${esc(CONFIG.TAGLINE)}</p>
-              ${social ? `<div class="foot-socials">${social}</div>` : ""}
+              ${socials ? `<div class="foot-socials">${socials}</div>` : ""}
             </div>
             <nav class="foot-col" aria-label="Explore">
               <h2>Explore</h2>
               <a href="/">Latest articles</a>
               ${admin ? "" : `<a href="/#search">Search articles</a>`}
-            </nav>
-            <nav class="foot-col" aria-label="Site">
-              <h2>Site</h2>
               <a href="/admin">Admin sign in</a>
-              <button type="button" id="dark-link"></button>
             </nav>
+            ${connect ? `<nav class="foot-col foot-connect" aria-label="Connect"><h2>Connect</h2>${connect}</nav>` : ""}
           </div>
           <div class="foot-bottom">
             <span>&copy; ${new Date().getFullYear()} ${esc(CONFIG.SITE_NAME)}. All rights reserved.</span>
-            <button type="button" class="btn btn-ghost btn-sm" id="to-top">${icon("arrowUp", 16)}<span>Back to top</span></button>
+            <div class="foot-actions">
+              <button type="button" class="btn btn-ghost btn-sm" id="dark-link"></button>
+              <button type="button" class="btn btn-ghost btn-sm" id="to-top">${icon("arrowUp", 16)}<span>Back to top</span></button>
+            </div>
           </div>
         </div>
       </footer>`;
     $("#to-top").onclick = () => window.scrollTo({ top: 0, behavior: "smooth" });
-    const paintLink = () => ($("#dark-link").textContent = dark() ? "Use light theme" : "Use dark theme");
+    const paintLink = () => ($("#dark-link").innerHTML = `${icon(dark() ? "sun" : "moon", 16)}<span>${dark() ? "Light" : "Dark"} theme</span>`);
     paintLink();
     $("#dark-link").onclick = () => { flip(); paintLink(); };
     $("#theme").addEventListener("click", paintLink);

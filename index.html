@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Rahat Khan — Blog</title>
 <meta name="description" content="Thoughts, stories and ideas by Rahat Khan.">
+<meta property="og:image" content="/images/rahat.png">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Rahat Khan — Blog">
 <meta property="og:description" content="Thoughts, stories and ideas by Rahat Khan.">
@@ -19,13 +20,18 @@
 <div id="header"></div>
 <main id="main" class="container" tabindex="-1">
   <section class="masthead">
-    <h1 id="h-name">Rahat Khan</h1>
-    <p id="h-tag"></p>
-    <div class="search-wrap">
-      <span class="search-ico" id="qi"></span>
-      <input class="input search" id="q" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off" enterkeyhint="search">
-      <button type="button" class="search-clear" id="qc" aria-label="Clear search" hidden></button>
+    <div class="mast-text">
+      <span class="eyebrow">Personal blog</span>
+      <h1 id="h-name">Rahat Khan</h1>
+      <p id="h-tag"></p>
+      <div class="search-wrap">
+        <span class="search-ico" id="qi"></span>
+        <input class="input search" id="q" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off" enterkeyhint="search">
+        <button type="button" class="search-clear" id="qc" aria-label="Clear search" hidden></button>
+      </div>
+      <div class="mast-social" id="mast-social"></div>
     </div>
+    <div class="mast-art" aria-hidden="true"><img src="/images/rahat.png" alt="" width="320" height="320" fetchpriority="high" onerror="this.parentNode.remove()"></div>
   </section>
 
   <div class="section-head">
@@ -52,6 +58,8 @@ $("#h-name").textContent = CONFIG.SITE_NAME;
 $("#h-tag").textContent = CONFIG.TAGLINE;
 $("#qi").innerHTML = icon("search", 18);
 $("#qc").innerHTML = icon("close", 16);
+$("#mast-social").innerHTML = (CONFIG.SOCIAL || []).filter((x) => x.type !== "email" && /^https?:/i.test(x.url))
+  .map((x) => `<a class="chip" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${icon(x.type, 16)}<span>${esc({ tiktok: "TikTok", instagram: "Instagram", facebook: "Facebook" }[x.type] || x.type)}</span></a>`).join("");
 
 const list = $("#list"), count = $("#count"), input = $("#q"), clearBtn = $("#qc");
 let posts = [];
