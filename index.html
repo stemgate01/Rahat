@@ -12,7 +12,7 @@
 <link rel="icon" href="/images/rahat.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Sans+Bengali:wght@400;500;600&family=Noto+Serif+Bengali:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..600&family=Noto+Sans+Bengali:wght@400;500;600&family=Noto+Serif+Bengali:wght@400;600&display=swap" rel="stylesheet">
 <script>document.documentElement.dataset.theme=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light")</script>
 <link rel="stylesheet" href="/style.css">
 </head>
@@ -22,8 +22,7 @@
   <section class="masthead">
     <div class="mast-text">
       <span class="eyebrow">Personal blog</span>
-      <h1 id="h-name">Rahat Khan</h1>
-      <p id="h-tag"></p>
+      <h1 id="h-name"></h1>
       <div class="search-wrap">
         <span class="search-ico" id="qi"></span>
         <input class="input search" id="q" type="search" placeholder="Search articles" aria-label="Search articles" autocomplete="off" enterkeyhint="search">
@@ -31,7 +30,6 @@
       </div>
       <div class="mast-social" id="mast-social"></div>
     </div>
-    <div class="mast-art" aria-hidden="true"><img src="/images/rahat.png" alt="" width="320" height="320" fetchpriority="high" onerror="this.parentNode.remove()"></div>
   </section>
 
   <div class="section-head">
@@ -54,8 +52,7 @@
 <script src="/app.js"></script>
 <script>
 mountChrome("home");
-$("#h-name").textContent = CONFIG.SITE_NAME;
-$("#h-tag").textContent = CONFIG.TAGLINE;
+$("#h-name").textContent = CONFIG.TAGLINE;
 $("#qi").innerHTML = icon("search", 18);
 $("#qc").innerHTML = icon("close", 16);
 $("#mast-social").innerHTML = (CONFIG.SOCIAL || []).filter((x) => x.type !== "email" && /^https?:/i.test(x.url))
