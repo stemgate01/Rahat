@@ -282,7 +282,7 @@ textarea.input{min-height:120px;resize:vertical;line-height:1.65}
   .item{grid-template-columns:56px minmax(0,1fr)}
   .item .mini{width:56px;height:56px}
   .item .actions{grid-column:1/-1;justify-content:flex-start}
-  .actions .btn:not(.keep){width:40px;padding:0}
+  .actions .btn:not(.keep):has(.lbl){width:40px;padding:0}
   .actions .btn:not(.keep) .lbl{display:none}
   .stat{padding:14px}
   .stat b{font-size:1.5rem}
@@ -407,4 +407,27 @@ body{background-image:radial-gradient(1100px 520px at 50% -160px,color-mix(in sr
   .page-head{align-items:stretch}
   .page-head>.actions,.page-head>.btn{width:100%}
   .page-head .actions .btn{flex:1 1 0;width:auto;padding:0 16px}
+}
+
+/* ---------- Polish round 2 ---------- */
+.thumb,.feature .thumb,.sk-card .sk.img,.cover-preview img{aspect-ratio:16/9}
+.site-footer{border-top:0}
+@media(max-width:520px){
+  .foot-socials{display:none}
+  .foot-grid{gap:22px;padding-bottom:28px}
+  .foot-col a{padding:6px 0}
+}
+
+/* ---------- Article: one shared reading column ---------- */
+.article-head,.prose,.share{max-width:740px}
+.article h1{font-size:clamp(2.25rem,5.2vw,3.75rem);text-wrap:balance}
+.prose{text-wrap:pretty}
+
+/* ---------- Touch comfort + safety ---------- */
+.actions .btn{flex-shrink:0}
+.more-all{display:inline-flex;align-items:center;min-height:40px}
+@media(max-width:760px),(pointer:coarse){
+  .seg span,.seg button{padding:10px 16px;min-height:40px}
+  .tab,.tabs button{min-height:40px}
+  .savebar .actions{flex:1 1 auto;justify-content:flex-end}
 }
